@@ -14,11 +14,14 @@ Continious delivery using pull requests to source-code repositories
 In this scenario `cd4sources` pulls source-code by itself, builds and runs delivered application
 
 Configuration
-  - Repository url, including user name and password
-  - Branch name
-  - Pull interval
-  - Command to build
-  - Command to get version
+- Repository url, including user name and password
+- Branch name
+- Pull interval
+- Command to build
+  - This command is passed to build.sh
+- Command to get artifact
+  - This command is passed to build.sh
+-  
   
 
 ## Delegated Pull
