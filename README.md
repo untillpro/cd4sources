@@ -1,17 +1,20 @@
-# pullcds
+# directcd
 
-Continious delivery using pull requests to source-code repositories
+Continious delivery directly to containers pulling sources from source-repos
 
-# Repository
+# Direct Pulling
 
-- `build.sh` must exist
-- `version` file or `build.sh version`
+In this scenario `directdc` pulls source-code by itself, builds and runs delivered application.
 
-# Configurations
+Example: `directdc --repo <repo1> --repo <repo2>=<repo3> -o <binary-name>`
+- Pull sources from repo1 and repo3
+- Every time changes come with pull command:
+  - `go.mod` is modified using `replace repo2=>../<repo3-folder-name>`
+  - `go build -o <binary-name>` is executed
+  - `go.mod` is reverted
+  - Previous instance of `<binary-name>` is terminated
+  - New instance of `<binary-name>` is launched
 
-## Direct Pull
-
-In this scenario `cd4sources` pulls source-code by itself, builds and runs delivered application
 
 Configuration
 - Repository url, including user name and password
@@ -23,7 +26,6 @@ Configuration
   - This command is passed to build.sh
 -  
   
-
 ## Delegated Pull
 
 In this scenario one or few `cd4sources` are servers, they pull and build software, others are just clients
