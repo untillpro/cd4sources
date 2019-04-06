@@ -24,7 +24,8 @@ var timeoutSec int32
 
 type puller struct {
 	ctx              context.Context
-	repos            map[string]string
+	repos            []string
+	substs           map[string]string
 	timeout          time.Duration
 	lastCommitHashes map[string]string
 }
@@ -49,48 +50,40 @@ func getLastCommitHash(repoDir string) string {
 func (p *puller) iteration() {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Recovered in pullerCycle", r)
+			fmt.Println("Recovered in puller iteration", r)
 		}
 	}()
 
 	// *************************************************
-	gc.Verbose("pullerCycle", "Checking if repos should be cloned")
+	gc.Verbose("iteration", "Checking if repos should be cloned")
 
-	for repo, fork := range p.repos {
-		var curRepoURL string
-		if len(fork) > 0 {
-			curRepoURL = fork
-		} else {
-			curRepoURL = repo
-		}
+	for _, curRepoURL := range p.repos {
 
-		// <workingDir>/<repoFolderName>-wd/<repoFolderName>
-		// <repoWd                        >/<repoFolderName>
-		// <repoDir                                        >
+		// <workingDir>/<repoFolderName>
+		// <repoDir                    >
 
 		u, err := url.Parse(curRepoURL)
 		gc.PanicIfError(err)
-		gc.Verbose("pullerCycle", "repo url", u.Path)
+		gc.Verbose("iteration", "repo url", u.Path)
 		urlParts := strings.Split(u.Path, "/")
 
 		repoFolderName := urlParts[len(urlParts)-1]
-		repoWd := path.Join(workingDir, repoFolderName+"-wd")
-		repoDir := path.Join(repoWd, repoFolderName)
+		repoDir := path.Join(workingDir, repoFolderName)
 
-		gc.Verbose("pullerCycle", "workingDir", workingDir)
-		gc.Verbose("pullerCycle", "repoDir", repoDir)
+		gc.Verbose("iteration", "workingDir", workingDir)
+		gc.Verbose("iteration", "repoDir", repoDir)
 
-		os.MkdirAll(repoWd, 0755)
+		os.MkdirAll(workingDir, 0755)
 
 		if _, err := os.Stat(repoDir); os.IsNotExist(err) {
-			gc.Info("pullerCycle", "Repo dir does not exist, will be cloned", repoDir, curRepoURL)
+			gc.Info("iteration", "Repo dir does not exist, will be cloned", repoDir, curRepoURL)
 			err := new(gc.PipedExec).
 				Command("git", "clone", curRepoURL).
-				WorkingDir(repoWd).
+				WorkingDir(workingDir).
 				Run(os.Stdin, os.Stderr)
 			gc.PanicIfError(err)
 		} else {
-			gc.Verbose("pullerCycle", "Repo dir exists, will be pulled", repoDir, curRepoURL)
+			gc.Verbose("iteration", "Repo dir exists, will be pulled", repoDir, curRepoURL)
 			stdouts, stderrs, err := new(gc.PipedExec).
 				Command("git", "pull", curRepoURL).
 				WorkingDir(repoDir).
@@ -104,7 +97,7 @@ func (p *puller) iteration() {
 		newHash := getLastCommitHash(repoDir)
 		oldHash := p.lastCommitHashes[repoDir]
 		if oldHash == newHash {
-
+			gc.Verbose("*** Nothing changed")
 		} else {
 			gc.Info("iteration", "Commit hash changed", oldHash, newHash)
 			err := new(gc.PipedExec).
@@ -122,10 +115,12 @@ func (p *puller) iteration() {
 func cycle(p *puller, wg *sync.WaitGroup) {
 	defer wg.Done()
 
+	gc.Info("Puller started")
+	gc.Info("repos", p.repos)
+	gc.Info("substs", p.substs)
+	gc.Info("timeout", p.timeout)
+
 	// *************************************************
-	gc.Doing("Pulling repos")
-	gc.Info(p.repos)
-	gc.Info("Timeout", p.timeout)
 
 F:
 	for {
@@ -141,22 +136,25 @@ F:
 	gc.Info("Puller ended")
 }
 
-func runPull(cmd *cobra.Command, args []string) {
+func runCmdPull(cmd *cobra.Command, args []string) {
 
 	// *************************************************
 	gc.Doing("Calculating puller parameters")
 
 	re := regexp.MustCompile(`([^=]*)(?:=(.*))?`)
-	repos := make(map[string]string)
+	repos := []string{}
+	substs := make(map[string]string)
 	for _, arg := range args {
 		matches := re.FindStringSubmatch(arg)
 		gc.Verbose("arg", arg)
 		gc.Verbose("matches", matches)
-		if len(matches) > 0 {
-			repos[matches[1]] = matches[2]
+		if len(matches[2]) > 0 {
+			substs[matches[1]] = matches[2]
+			repos = append(repos, matches[2])
+		} else {
+			repos = append(repos, matches[1])
 		}
 	}
-	gc.Verbose("repos", repos)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -169,7 +167,7 @@ func runPull(cmd *cobra.Command, args []string) {
 	gc.Doing("Starting puller")
 	wg.Add(1)
 
-	p := &puller{ctx: ctx, repos: repos, timeout: time.Duration(timeoutSec) * time.Second, lastCommitHashes: map[string]string{}}
+	p := &puller{ctx: ctx, repos: repos, substs: substs, timeout: time.Duration(timeoutSec) * time.Second, lastCommitHashes: map[string]string{}}
 
 	go cycle(p, &wg)
 

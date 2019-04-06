@@ -11,7 +11,7 @@ func main() {
 		Use:   "pull <main-repo> <repo2[=<repo2-fork]>",
 		Short: "Pull sources from given repos",
 		Args:  cobra.MinimumNArgs(1),
-		Run:   runPull,
+		Run:   runCmdPull,
 	}
 	cmdPull.PersistentFlags().StringVarP(&binaryName, "output", "o", "", "Output binary name")
 	cmdPull.PersistentFlags().StringVarP(&workingDir, "working-dir", "w", ".", "Working directory")
