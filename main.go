@@ -1,27 +1,45 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 	gc "github.com/untillpro/gochips"
 )
 
 func main() {
 
-	var cmdPull = &cobra.Command{
-		Use:   "pull <main-repo> <repo2[=<repo2-fork]>",
-		Short: "Pull sources from given repos",
-		Args:  cobra.MinimumNArgs(1),
-		Run:   runCmdPull,
-	}
-	cmdPull.PersistentFlags().StringVarP(&binaryName, "output", "o", "", "Output binary name")
-	cmdPull.PersistentFlags().StringVarP(&workingDir, "working-dir", "w", ".", "Working directory")
-	cmdPull.PersistentFlags().Int32VarP(&timeoutSec, "timeout", "t", 10, "Timeout")
-	cmdPull.MarkPersistentFlagRequired("output")
-
 	var rootCmd = &cobra.Command{Use: "directcd"}
-
-	rootCmd.AddCommand(cmdPull)
 	rootCmd.PersistentFlags().BoolVarP(&gc.IsVerbose, "verbose", "v", false, "Verbose output")
+
+	// cmdPull
+	{
+		var cmdPull = &cobra.Command{
+			Use:   "pull --repo <main-repo> --repo <repo2[=<repo2-fork]> [args]",
+			Short: "Pull sources from given repos",
+			Run:   runCmdPull,
+		}
+		cmdPull.PersistentFlags().StringVarP(&binaryName, "output", "o", "", "Output binary name")
+		cmdPull.PersistentFlags().StringVarP(&workingDir, "working-dir", "w", ".", "Working directory")
+		cmdPull.PersistentFlags().Int32VarP(&timeoutSec, "timeout", "t", 10, "Timeout")
+		cmdPull.PersistentFlags().StringSliceVarP(&mappedRepos, "repo", "r", []string{}, "Repositories")
+		cmdPull.MarkPersistentFlagRequired("output")
+		cmdPull.MarkPersistentFlagRequired("repo")
+
+		rootCmd.AddCommand(cmdPull)
+	}
+
+	// cmdTest
+	{
+		var args2 []string
+		var cmdTest = &cobra.Command{
+			Use: "test --repo",
+			Run: func(cmd *cobra.Command, args []string) { fmt.Println("Args=", args2) },
+		}
+		cmdTest.PersistentFlags().StringSliceVarP(&args2, "args", "a", []string{}, "Repos")
+		rootCmd.AddCommand(cmdTest)
+	}
+
 	rootCmd.Execute()
 
 }

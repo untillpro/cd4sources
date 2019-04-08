@@ -7,8 +7,10 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -21,6 +23,7 @@ import (
 var binaryName string
 var workingDir string
 var timeoutSec int32
+var mappedRepos []string
 
 type puller struct {
 	ctx              context.Context
@@ -28,6 +31,7 @@ type puller struct {
 	substs           map[string]string
 	timeout          time.Duration
 	lastCommitHashes map[string]string
+	cmd              *exec.Cmd
 }
 
 func verboseWriters() (out io.Writer, err io.Writer) {
@@ -47,46 +51,62 @@ func getLastCommitHash(repoDir string) string {
 	return strings.TrimSpace(stdout)
 }
 
+// <workingDir>/<repoFolder>
+// <repoPath               >
+// repoPath = workingDir + '/' + repoFolder
+func (p *puller) getRepoFolders(repoURL string) (repoPath string, repoFolder string) {
+	u, err := url.Parse(repoURL)
+	gc.PanicIfError(err)
+	urlParts := strings.Split(u.Path, "/")
+	repoFolder = urlParts[len(urlParts)-1]
+	repoPath = path.Join(workingDir, repoFolder)
+	return
+}
+
+func (p *puller) stopCmd() {
+	defer func() { p.cmd = nil }()
+	if nil != p.cmd {
+		gc.Doing("stopCmd: Terminating  previous process")
+		err := p.cmd.Process.Kill()
+		if nil != err {
+			gc.Info("stopCmd: Error occured:", err)
+		}
+		gc.Info("Done")
+	}
+}
+
 func (p *puller) iteration() {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Recovered in puller iteration", r)
+			fmt.Println("iteration: Recovered: ", r)
 		}
 	}()
 
 	// *************************************************
-	gc.Verbose("iteration", "Checking if repos should be cloned")
+	gc.Verbose("iteration:", "Checking if repos should be cloned")
+
+	atLeastOneRepoChanged := false
 
 	for _, curRepoURL := range p.repos {
 
-		// <workingDir>/<repoFolderName>
-		// <repoDir                    >
+		repoPath, repoFolder := p.getRepoFolders(curRepoURL)
 
-		u, err := url.Parse(curRepoURL)
-		gc.PanicIfError(err)
-		gc.Verbose("iteration", "repo url", u.Path)
-		urlParts := strings.Split(u.Path, "/")
-
-		repoFolderName := urlParts[len(urlParts)-1]
-		repoDir := path.Join(workingDir, repoFolderName)
-
-		gc.Verbose("iteration", "workingDir", workingDir)
-		gc.Verbose("iteration", "repoDir", repoDir)
+		gc.Verbose("iteration:", "repoPath, repoFolder=", repoPath, repoFolder)
 
 		os.MkdirAll(workingDir, 0755)
 
-		if _, err := os.Stat(repoDir); os.IsNotExist(err) {
-			gc.Info("iteration", "Repo dir does not exist, will be cloned", repoDir, curRepoURL)
+		if _, err := os.Stat(repoPath); os.IsNotExist(err) {
+			gc.Info("iteration:", "Repo folder does not exist, will be cloned", repoPath, curRepoURL)
 			err := new(gc.PipedExec).
 				Command("git", "clone", curRepoURL).
 				WorkingDir(workingDir).
 				Run(os.Stdin, os.Stderr)
 			gc.PanicIfError(err)
 		} else {
-			gc.Verbose("iteration", "Repo dir exists, will be pulled", repoDir, curRepoURL)
+			gc.Verbose("iteration:", "Repo dir exists, will be pulled", repoPath, curRepoURL)
 			stdouts, stderrs, err := new(gc.PipedExec).
 				Command("git", "pull", curRepoURL).
-				WorkingDir(repoDir).
+				WorkingDir(repoPath).
 				RunToStrings()
 			if nil != err {
 				gc.Info(stdouts, stderrs)
@@ -94,20 +114,52 @@ func (p *puller) iteration() {
 			gc.PanicIfError(err)
 		}
 
-		newHash := getLastCommitHash(repoDir)
-		oldHash := p.lastCommitHashes[repoDir]
+		newHash := getLastCommitHash(repoPath)
+		oldHash := p.lastCommitHashes[repoPath]
 		if oldHash == newHash {
 			gc.Verbose("*** Nothing changed")
 		} else {
-			gc.Info("iteration", "Commit hash changed", oldHash, newHash)
-			err := new(gc.PipedExec).
-				Command("go", "build", "-o", binaryName).
-				WorkingDir(repoDir).
-				Run(verboseWriters())
-			gc.PanicIfError(err)
+			gc.Info("iteration:", "Commit hash changed", oldHash, newHash)
+			atLeastOneRepoChanged = true
+			p.lastCommitHashes[repoPath] = newHash
 		}
+	} // for repors
 
-		p.lastCommitHashes[repoDir] = newHash
+	if atLeastOneRepoChanged {
+
+		p.stopCmd()
+
+		gc.Info("iteration:", "Main repo will be rebuilt")
+
+		repoPath, _ := p.getRepoFolders(p.repos[0])
+
+		gc.Doing("go get -u")
+		err := new(gc.PipedExec).
+			Command("go", "get", "-u").
+			WorkingDir(repoPath).
+			Run(verboseWriters())
+		gc.PanicIfError(err)
+
+		gc.Doing("go build")
+		err = new(gc.PipedExec).
+			Command("go", "build", "-o", binaryName).
+			WorkingDir(repoPath).
+			Run(verboseWriters())
+		gc.PanicIfError(err)
+
+		gc.Info("iteration:", "Done")
+
+		fileToExec, err := filepath.Abs(path.Join(repoPath, binaryName))
+		gc.PanicIfError(err)
+		gc.Doing("Running " + fileToExec)
+
+		pe := new(gc.PipedExec)
+		err = pe.Command(fileToExec).
+			WorkingDir(repoPath).
+			Start(os.Stdout, os.Stderr)
+		gc.PanicIfError(err)
+		p.cmd = pe.GetCmd(0)
+		gc.Info("iteration:", "Process started!")
 	}
 
 }
@@ -128,6 +180,7 @@ F:
 		select {
 		case <-time.After(p.timeout):
 		case <-p.ctx.Done():
+			p.stopCmd()
 			gc.Verbose("puller", "Done")
 			break F
 		}
@@ -144,7 +197,7 @@ func runCmdPull(cmd *cobra.Command, args []string) {
 	re := regexp.MustCompile(`([^=]*)(?:=(.*))?`)
 	repos := []string{}
 	substs := make(map[string]string)
-	for _, arg := range args {
+	for _, arg := range mappedRepos {
 		matches := re.FindStringSubmatch(arg)
 		gc.Verbose("arg", arg)
 		gc.Verbose("matches", matches)
