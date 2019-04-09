@@ -12,7 +12,7 @@ directcd:
 
 - Pull sources from repo1 and repo3
 - Every time changes come with pull command:
-  - `go.mod` is modified using `replace repo2=>../<repo3-folder-name>`
+  - `go.mod` is modified using `replace repo2 => ../<repo3-folder-name>`
   - `go build -o <binary-name>` is executed
   - `go.mod` is reverted
   - Previous instance of `<binary-name>` is terminated
