@@ -37,6 +37,7 @@ Continious delivery directly to containers pulling sources from source-repos
   - `replace` directive is added to main repo `go.mod`
     - `replace github.com/untillpro/directcd-test-print => ../directcd-test-print`
   - main repo is built and launched
+  - `go.mod` is reverted to original state
 - `-v` means verbose mode
 - `--option1 arg1 arg2` are passed to `out.exe`
 
