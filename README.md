@@ -2,21 +2,43 @@
 
 Continious delivery directly to containers pulling sources from source-repos
 
-# Direct Pulling
+# Pulling Single Repo
 
-In this scenario `directcd` pulls source-code by itself, builds and runs delivered application.
+```sh
+./directcd pull --repo https://github.com/untillpro/directcd-test \
+  -o directcd-test.exe \
+  -t 10 \
+  -w .tmp
+```
 
-Example: `directdc pull --repo <main-repo> --replace <repo2>=<repo3> -o <binary-name>`
+- Repo directcd-test is pulled every 10 seconds
+- If changes occur
+    - Prevous instance (if any) of `directcd-test.exe` is terminated
+    - `go build -o directcd-test.exe` is invoked
+    - `directcd-test.exe` is launched
+- Working files are located in `.tmp` folder
 
-directcd:
+# Pulling Few Repos
 
-- Pull sources from repo1 and repo3
-- Every time changes come with pull command:
-  - Previous instance of `<binary-name>` is terminated
-  - `go.mod` is modified using `replace repo2 => ../<repo3-folder-name>`
-  - `go build -o <binary-name>` is executed
-  - `go.mod` is reverted
-  - New instance of `<binary-name>` is launched
+```sh
+./directcd pull \
+  --repo https://github.com/untillpro/directcd-test \
+  --replace https://github.com/untillpro/directcd-test-print=https://github.com/maxim-ge/directcd-test-print \
+  -v \
+  -o out.exe \
+  -t 10 \
+  -w .tmp \
+  -- --option1 arg1 arg2
+```
+
+- Repos specified by `--repo` (main repo) and `--replace` flags are pulled every 10 seconds
+- If changes occur 
+  - Prevous instance (if any) of `out.exe` is terminated
+  - `replace` directive is added to main repo `go.mod`
+    - `replace github.com/untillpro/directcd-test-print => ../directcd-test-print`
+  - main repo is built and launched
+- `-v` means verbose mode
+- `--option1 arg1 arg2` are passed to `out.exe`
 
 # Links
 
