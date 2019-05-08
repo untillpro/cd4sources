@@ -2,15 +2,17 @@ version: '3.3'
 
 services:
   directcd-test:
-    image: ${DOCKER_LOGIN}/directcd:1.0
-    environment:
-      - REPO=https://github.com/untillpro/directcd-test
-      - REPLACE=https://github.com/untillpro/directcd-test-print=https://github.com/maxim-ge/directcd-test-print
-      - VERBOSE=true
-      - OUT=out.exe
-      - TIMEOUT=10
-      - WORKING_FOLDER=tmp
-      - ARGS=--option1 arg1 arg2
+    image: ${DOCKER_LOGIN}/directcd:1.1
+    command:
+      - pull
+      - --repo=https://github.com/untillpro/directcd-test
+      - --replace=https://github.com/untillpro/directcd-test-print=https://github.com/maxim-ge/directcd-test-print
+      - -v
+      - -o=out.exe
+      - -t=10
+      - -w=tmp
+      - --
+      - --option1 arg1 arg2
     networks:
       - webgateway
 
