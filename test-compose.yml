@@ -1,0 +1,19 @@
+version: '3.3'
+
+services:
+  directcd-test:
+    image: kindratte/directcd:1.0
+    environment:
+      - REPO=https://github.com/untillpro/directcd-test
+      - REPLACE=https://github.com/untillpro/directcd-test-print=https://github.com/maxim-ge/directcd-test-print
+      - VERBOSE=true
+      - OUT=out.exe
+      - TIMEOUT=10
+      - WORKING_FOLDER=tmp
+      - ARGS=--option1 arg1 arg2
+    networks:
+      - webgateway
+
+networks:
+  webgateway:
+    external: true
