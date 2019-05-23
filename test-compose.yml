@@ -1,0 +1,21 @@
+version: '3.3'
+
+services:
+  directcd-test:
+    image: ${DOCKER_LOGIN}/directcd:1.1
+    command:
+      - pull
+      - --repo=https://github.com/untillpro/directcd-test
+      - --replace=https://github.com/untillpro/directcd-test-print=https://github.com/maxim-ge/directcd-test-print
+      - -v
+      - -o=out.exe
+      - -t=10
+      - -w=tmp
+      - --
+      - --option1 arg1 arg2
+    networks:
+      - webgateway
+
+networks:
+  webgateway:
+    external: true
