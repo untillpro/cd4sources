@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	gc "github.com/untillpro/gochips"
 )
@@ -29,17 +27,6 @@ func main() {
 		cmdPull.MarkPersistentFlagRequired("repo")
 
 		rootCmd.AddCommand(cmdPull)
-	}
-
-	// cmdTest
-	{
-		var args2 []string
-		var cmdTest = &cobra.Command{
-			Use: "test --repo",
-			Run: func(cmd *cobra.Command, args []string) { fmt.Println("Args=", args2) },
-		}
-		cmdTest.PersistentFlags().StringSliceVarP(&args2, "args", "a", []string{}, "Repos")
-		rootCmd.AddCommand(cmdTest)
 	}
 
 	rootCmd.Execute()
