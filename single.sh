@@ -1,5 +1,5 @@
 #/bin/bash
-./directcd pull 
+./directcd pull \
   --repo https://github.com/untillpro/directcd-test \
   -o directcd-test.exe \
   -t 10 \
