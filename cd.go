@@ -26,7 +26,7 @@ var timeoutSec int32
 var mainRepo string
 var argReplaced []string
 
-type puller struct {
+type cder struct {
 	ctx              context.Context
 	repos            []string
 	forks            map[string]string
@@ -56,7 +56,7 @@ func getLastCommitHash(repoDir string) string {
 // <workingDir>/<repoFolder>
 // <repoPath               >
 // repoPath = workingDir + '/' + repoFolder
-func (p *puller) getAbsRepoFolders(repoURL string) (repoPath string, repoFolder string) {
+func (p *cder) getAbsRepoFolders(repoURL string) (repoPath string, repoFolder string) {
 	u, err := url.Parse(repoURL)
 	gc.PanicIfError(err)
 	urlParts := strings.Split(u.Path, "/")
@@ -65,7 +65,7 @@ func (p *puller) getAbsRepoFolders(repoURL string) (repoPath string, repoFolder 
 	return
 }
 
-func (p *puller) stopCmd() {
+func (p *cder) stopCmd() {
 	defer func() { p.cmd = nil }()
 	if nil != p.cmd {
 		gc.Doing("stopCmd: Terminating  previous process")
@@ -77,7 +77,7 @@ func (p *puller) stopCmd() {
 	}
 }
 
-func (p *puller) replaceGoMod() {
+func (p *cder) replaceGoMod() {
 
 	mainRepoPath, _ := p.getAbsRepoFolders(p.repos[0])
 	goModPath := path.Join(mainRepoPath, "go.mod")
@@ -112,7 +112,7 @@ func (p *puller) replaceGoMod() {
 
 }
 
-func (p *puller) iterationRepoChanged() {
+func (p *cder) iterationRepoChanged() {
 	p.stopCmd()
 
 	p.replaceGoMod()
@@ -143,7 +143,7 @@ func (p *puller) iterationRepoChanged() {
 	gc.Info("iteration:", "Process started!")
 }
 
-func (p *puller) recoverGoMod(normalRecover bool) {
+func (p *cder) recoverGoMod(normalRecover bool) {
 	goModPath, _ := filepath.Abs(path.Join(workingDir, "go.mod"))
 	if _, err := os.Stat(goModPath); os.IsNotExist(err) {
 		return
@@ -162,7 +162,7 @@ func (p *puller) recoverGoMod(normalRecover bool) {
 
 }
 
-func (p *puller) iteration() {
+func (p *cder) iteration() {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("iteration: Recovered: ", r)
@@ -220,10 +220,10 @@ func (p *puller) iteration() {
 
 }
 
-func cycle(p *puller, wg *sync.WaitGroup) {
+func runCmdCDCycle(p *cder, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	gc.Info("Puller started")
+	gc.Info("CD started")
 	gc.Info("repos", p.repos)
 	gc.Info("forks", p.forks)
 	gc.Info("timeout", p.timeout)
@@ -237,12 +237,12 @@ F:
 		case <-time.After(p.timeout):
 		case <-p.ctx.Done():
 			p.stopCmd()
-			gc.Verbose("puller", "Done")
+			gc.Verbose("cder", "Done")
 			break F
 		}
 	}
 
-	gc.Info("Puller ended")
+	gc.Info("cder ended")
 }
 
 func runCmdPull(cmd *cobra.Command, args []string) {
@@ -273,7 +273,7 @@ func runCmdPull(cmd *cobra.Command, args []string) {
 	gc.Doing("Starting puller")
 	wg.Add(1)
 
-	p := &puller{ctx: ctx,
+	p := &cder{ctx: ctx,
 		repos:            repos,
 		forks:            forks,
 		timeout:          time.Duration(timeoutSec) * time.Second,
@@ -281,7 +281,7 @@ func runCmdPull(cmd *cobra.Command, args []string) {
 		args:             args,
 	}
 
-	go cycle(p, &wg)
+	go runCmdCDCycle(p, &wg)
 
 	go func() {
 		signal := <-signals

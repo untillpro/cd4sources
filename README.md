@@ -41,6 +41,17 @@ Continious delivery directly to containers pulling sources from source-repos
 - `-v` means verbose mode
 - `--option1 arg1 arg2` are passed to `out.exe`
 
+# Configuring Hook
+
+- It is possible to configure a `hook` command which will be fired off when when certain important actions occur
+- Hook command is passed through `--hook` argument
+- Action is passed as a first command line argument
+  - `start`. directcd just started, repos might not be pulled yet
+  - `stop`. directcd is stopping
+  - `build`. directcd pulled some updates
+- Hook parameters are passed through `--hook-parameter` argument
+
+
 # Links
 
 Hooks
